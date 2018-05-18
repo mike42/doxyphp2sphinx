@@ -10,41 +10,43 @@ import xml.etree.ElementTree as ET
 import argparse
 import os
 
-def renderNamespaceByName(tree, namespaceName):
+
+def render_namespace_by_name(tree, namespace_name):
     root = tree.getroot()
     for child in root:
         if child.attrib['kind'] != 'namespace':
             # Skip non-namespace
             continue
-        thisNamespaceName = child.find('name').text
-        if thisNamespaceName != namespaceName:
+        this_namespace_name = child.find('name').text
+        if this_namespace_name != namespace_name:
             continue
-        renderNamespaceByRefId(child.attrib['refid'], thisNamespaceName)
+        render_namespace_by_ref_id(child.attrib['refid'], this_namespace_name)
 
-def renderNamespaceByRefId(namespaceRefId, name):
+
+def render_namespace_by_ref_id(namespace_ref_id, name):
     print("Processing namespace " + name)
-    print("  refid is " + namespaceRefId)
+    print("  refid is " + namespace_ref_id)
     prefix = rootNamespace + "::"
-    isRoot = False
+    is_root = False
     if name == rootNamespace:
-      isRoot = True
+        is_root = True
     elif not name.startswith(prefix):
-      print("  Skipping, not under " + rootNamespace)
-      return
-    xmlFilename = inpDir + '/' + namespaceRefId + '.xml'
-    print("  Opening " + xmlFilename)
-    ns = ET.parse(xmlFilename)
+        print("  Skipping, not under " + rootNamespace)
+        return
+    xml_filename = inpDir + '/' + namespace_ref_id + '.xml'
+    print("  Opening " + xml_filename)
+    ns = ET.parse(xml_filename)
     compound = ns.getroot().find('compounddef')
     # Generate some markup
-    title = "API documentation" if isRoot else name[len(prefix):] + " namespace"
+    title = "API documentation" if is_root else name[len(prefix):] + " namespace"
 
     parts = name[len(prefix):].split("::")
-    shortnameIdx = "api" if isRoot else ("api/" + "/".join(parts[:-1] + ['_' + parts[-1]]).lower())
-    shortnameDir = "api" if isRoot else ("api/" + "/".join(parts[:-1] + [parts[-1]]).lower())
-    glob = "api/*" if isRoot else parts[-1].lower() + "/*"
-    outfile = outDir + "/" + shortnameIdx + ".rst"
-    if not os.path.exists(outDir + '/' + shortnameDir):
-        os.mkdir(outDir + "/" + shortnameDir)
+    shortname_idx = "api" if is_root else ("api/" + "/".join(parts[:-1] + ['_' + parts[-1]]).lower())
+    shortname_dir = "api" if is_root else ("api/" + "/".join(parts[:-1] + [parts[-1]]).lower())
+    glob = "api/*" if is_root else parts[-1].lower() + "/*"
+    outfile = outDir + "/" + shortname_idx + ".rst"
+    if not os.path.exists(outDir + '/' + shortname_dir):
+        os.mkdir(outDir + "/" + shortname_dir)
 
     print("  Page title will be '" + title + "'")
     print("  Page path will be  '" + outfile + "'")
@@ -62,66 +64,68 @@ def renderNamespaceByRefId(namespaceRefId, name):
    """ + glob + "\n\n" + desc + "\n")
 
     for node in compound.iter('innerclass'):
-        clId = node.attrib['refid']
-        clName = node.text
-        renderClassByRefId(clId, clName)
+        cl_id = node.attrib['refid']
+        cl_name = node.text
+        render_class_by_ref_id(cl_id, cl_name)
 
     for node in compound.iter('innernamespace'):
-        nsId = node.attrib['refid']
-        nsName = node.text
-        renderNamespaceByRefId(nsId, nsName)
+        ns_id = node.attrib['refid']
+        ns_name = node.text
+        render_namespace_by_ref_id(ns_id, ns_name)
+
 
 # Walk the XML and extract all members of the given 'kind'
-def classMemberList(compounddef, memberKind):
-    res = classMemberDict(compounddef, memberKind)
+def class_member_list(compounddef, member_kind):
+    res = class_member_dict(compounddef, member_kind)
     return OrderedDict(sorted(res.items())).values()
     
 
-def classMemberDict(compounddef, memberKind):
+def class_member_dict(compounddef, member_kind):
     # Find items declared on this class
     ret = OrderedDict()
     for section in compounddef.iter('sectiondef'):
         kind = section.attrib['kind']
-        if kind != memberKind:
+        if kind != member_kind:
             continue
         for member in section.iter('memberdef'):
-            methodName = member.find('definition').text.split("::")[-1]
-            ret[methodName] = member
+            method_name = member.find('definition').text.split("::")[-1]
+            ret[method_name] = member
     # Follow-up with items from base classes
-    if ("private" in memberKind) or ("static" in memberKind):
+    if ("private" in member_kind) or ("static" in member_kind):
         # Private methods are not accessible, and static methods should be
         # called on the class which defines them.
         return ret
-    for baseClass in compounddef.iter('basecompoundref'):
+    for base_class in compounddef.iter('basecompoundref'):
         # TODO load XML and recurse
-        refid = baseClass.attrib['refid']
-        baseCompoundDef = compounddefByRefId(refid)
-        inherited = classMemberDict(baseCompoundDef, memberKind)
+        refid = base_class.attrib['refid']
+        base_compound_def = compounddef_by_ref_id(refid)
+        inherited = class_member_dict(base_compound_def, member_kind)
         for key, value in inherited.items():
-          if key not in ret:
-              ret[key] = value
+            if key not in ret:
+                ret[key] = value
     return ret
 
-def classXmlToRst(compounddef, title):
+
+def class_xml_to_rst(compounddef, title):
     rst = title + "\n"
     rst += "=" * len(title) + "\n\n"
 
     # Class description
-    detailedDescriptionXml = compounddef.find('detaileddescription')
-    detailedDescriptionText = paras2rst(detailedDescriptionXml).strip();
-    if detailedDescriptionText != "":
-      rst += detailedDescriptionText + "\n\n"
+    detailed_description_xml = compounddef.find('detaileddescription')
+    detailed_description_text = paras2rst(detailed_description_xml).strip()
+    if detailed_description_text != "":
+      rst += detailed_description_text + "\n\n"
 
     # Look up base classes
     extends = []
     implements = []
-    for baseClass in compounddef.iter('basecompoundref'):
-        baserefid = baseClass.attrib['refid']
-        baseCompoundDef = compounddefByRefId(baserefid)
-        if(baseCompoundDef.attrib['kind'] == "class"):
-            extends.append(baseCompoundDef)
+    for base_class in compounddef.iter('basecompoundref'):
+        baserefid = base_class.attrib['refid']
+        base_compound_def = compounddef_by_ref_id(baserefid)
+        if base_compound_def.attrib['kind'] == "class":
+            extends.append(base_compound_def)
         else:
-            implements.append(baseCompoundDef)
+            implements.append(base_compound_def)
 
     # TODO a small table.
     #  <compoundname>Mike42::GfxPhp::Codec::GifCodec</compoundname>
@@ -130,20 +134,20 @@ def classXmlToRst(compounddef, title):
     # All implemented interfaces
     # <basecompoundref refid="interfaceMike42_1_1GfxPhp_1_1Codec_1_1ImageEncoder" prot="public" virt="non-virtual">Mike42\GfxPhp\Codec\ImageEncoder</basecompoundref>
     # All known sub-classes]
-    qualifiedName = compounddef.find('compoundname').text.replace("::", "\\")
-    rst += ":Qualified name: ``" + qualifiedName + "``\n"
+    qualified_name = compounddef.find('compoundname').text.replace("::", "\\")
+    rst += ":Qualified name: ``" + qualified_name + "``\n"
     if len(extends) > 0:
-        extendsLinks = []
-        for baseClass in extends:
-            baseClassName = baseClass.find('compoundname').text.split("::")[-1]
-            extendsLinks.append(":class:`" + baseClassName + "`")
-        rst += ":Extends: " + ", ".join(extendsLinks) + "\n"  
+        extends_links = []
+        for base_class in extends:
+            base_class_name = base_class.find('compoundname').text.split("::")[-1]
+            extends_links.append(":class:`" + base_class_name + "`")
+        rst += ":Extends: " + ", ".join(extends_links) + "\n"
     if len(implements) > 0:
-        implementsLinks = []
-        for baseInterface in implements:
-            baseInterfaceName = baseInterface.find('compoundname').text.split("::")[-1]
-            implementsLinks.append(":interface:`" + baseInterfaceName + "`")
-        rst += ":Implements: " + ", ".join(implementsLinks) + "\n" 
+        implements_links = []
+        for base_interface in implements:
+            base_interface_name = base_interface.find('compoundname').text.split("::")[-1]
+            implements_links.append(":interface:`" + base_interface_name + "`")
+        rst += ":Implements: " + ", ".join(implements_links) + "\n"
     rst += "\n"
 
     # Class name
@@ -153,118 +157,121 @@ def classXmlToRst(compounddef, title):
       rst += ".. php:class:: " + title + "\n\n"
 
     # Methods
-    methods = classMemberList(compounddef, 'public-func')
+    methods = class_member_list(compounddef, 'public-func')
     print("  methods:")
     for method in methods:
-        rst += methodXmlToRst(method, 'method')
+        rst += method_xml_to_rst(method, 'method')
 
     # Static methods
-    methods = classMemberList(compounddef, 'public-static-func')
+    methods = class_member_list(compounddef, 'public-static-func')
     print("  static methods:")
     for method in methods:
-        rst += methodXmlToRst(method, 'staticmethod')
+        rst += method_xml_to_rst(method, 'staticmethod')
 
     return rst
 
-def methodXmlToRst(member, methodType):
+
+def method_xml_to_rst(member, method_type):
     rst = ""
-    documentedParams = {}
+    documented_params = {}
     dd = member.find('detaileddescription')
-    returnInfo = retInfo(dd)
+    return_info = ret_info(dd)
     params = dd.find('*/parameterlist')
     if params != None:
         # Use documented param list if present
         for arg in params.iter('parameteritem'):
             argname = arg.find('parameternamelist')
-            argnameType = argname.find('parametertype').text
-            argnameName = argname.find('parametername').text
+            argname_type = argname.find('parametertype').text
+            argname_name = argname.find('parametername').text
             argdesc = arg.find('parameterdescription')
-            argdescPara = argdesc.iter('para')
-            doco = ("    :param " + argnameType).rstrip() + " " + argnameName + ":\n"
-            if argdescPara != None:
-              doco += paras2rst(argdescPara, "      ")
-            documentedParams[argnameName] = doco
-    methodName = member.find('definition').text.split("::")[-1]
-    argsString = methodArgsString(member)
+            argdesc_para = argdesc.iter('para')
+            doco = ("    :param " + argname_type).rstrip() + " " + argname_name + ":\n"
+            if argdesc_para != None:
+              doco += paras2rst(argdesc_para, "      ")
+            documented_params[argname_name] = doco
+    method_name = member.find('definition').text.split("::")[-1]
+    args_string = method_args_string(member)
 
-    if returnInfo != None and returnInfo['returnType'] != None:
-      argsString += " -> " + returnInfo['returnType']
-    rst += "  .. php:" + methodType + ":: " + methodName + " " + argsString + "\n\n"
+    if return_info != None and return_info['returnType'] != None:
+      args_string += " -> " + return_info['returnType']
+    rst += "  .. php:" + method_type + ":: " + method_name + " " + args_string + "\n\n"
     # Member description
-    mDetailedDescriptionText = paras2rst(dd).strip();
-    if mDetailedDescriptionText != "":
-      rst += "    " + mDetailedDescriptionText + "\n\n"
+    m_detailed_description_text = paras2rst(dd).strip()
+    if m_detailed_description_text != "":
+      rst += "    " + m_detailed_description_text + "\n\n"
 
     # Param list from the definition in the code and use
     # documentation where available, auto-fill where not.
     params = member.iter('param')
     if params != None:
       for arg in params:
-        paramKey = arg.find('declname').text
-        paramDefval = arg.find('defval')
-        if paramKey in documentedParams:
-          paramDoc = documentedParams[paramKey].rstrip()
+        param_key = arg.find('declname').text
+        param_defval = arg.find('defval')
+        if param_key in documented_params:
+          param_doc = documented_params[param_key].rstrip()
           # Append a "." if the documentation does not end with one, AND we
           # need to write about the default value later.
-          if paramDoc[-1] != "." and paramDoc[-1] != ":" and paramDefval != None:
-            paramDoc += "."
-          rst += paramDoc + "\n"
+          if param_doc[-1] != "." and param_doc[-1] != ":" and param_defval != None:
+            param_doc += "."
+          rst += param_doc + "\n"
         else:
           # Undocumented param
-          paramName = paramKey
-          typeEl = arg.find('type')
-          typeStr = "" if typeEl == None else para2rst(typeEl)
-          rst += "    :param " + (unencapsulate(typeStr) + " " + paramName).strip() + ":\n"
+          param_name = param_key
+          type_el = arg.find('type')
+          type_str = "" if type_el == None else para2rst(type_el)
+          rst += "    :param " + (unencapsulate(type_str) + " " + param_name).strip() + ":\n"
         # Default value description
-        if paramDefval != None:
-          rst += "      Default: ``" + paramDefval.text + "``\n"
+        if param_defval != None:
+          rst += "      Default: ``" + param_defval.text + "``\n"
     # Return value
-    if returnInfo != None:
-        if returnInfo['returnType'] != None:
-            rst += "    :returns: " + itsatype(returnInfo['returnType'], False) + " -- " + returnInfo['returnDesc'] + "\n"
+    if return_info != None:
+        if return_info['returnType'] != None:
+            rst += "    :returns: " + itsatype(return_info['returnType'], False) + " -- " + return_info['returnDesc'] + "\n"
         else:
-            rst += "    :returns: " + returnInfo['returnDesc'] + "\n"
-    if (params != None) or (returnInfo != None):
+            rst += "    :returns: " + return_info['returnDesc'] + "\n"
+    if (params != None) or (return_info != None):
         rst += "\n"
-    print("    " +  methodName + " " + argsString)
+    print("    " +  method_name + " " + args_string)
     return rst
 
-def methodArgsString(member):
+
+def method_args_string(member):
     params = member.iter('param')
     if params == None:
         # Main option is to use arg list from doxygen
-        argList = member.find('argsstring').text
-        return "()" if argList == None else argList
-    requiredParamPart = []
-    optionalParamPart = []
-    optionalSwitch = False
+        arg_list = member.find('argsstring').text
+        return "()" if arg_list == None else arg_list
+    required_param_part = []
+    optional_param_part = []
+    optional_switch = False
     for param in params:
-        paramName = param.find('declname').text
-        typeEl = param.find('type')
-        typeStr = "" if typeEl == None else para2rst(typeEl)
-        typeStr = unencapsulate(typeStr)
-        paramStr = (typeStr + " " + paramName).strip()
+        param_name = param.find('declname').text
+        type_el = param.find('type')
+        type_str = "" if type_el == None else para2rst(type_el)
+        type_str = unencapsulate(type_str)
+        param_str = (type_str + " " + param_name).strip()
         if param.find('defval') != None:
-            optionalSwitch = True
-        if optionalSwitch:
-            optionalParamPart.append(paramStr);
+            optional_switch = True
+        if optional_switch:
+            optional_param_part.append(param_str)
         else:
-            requiredParamPart.append(paramStr);
+            required_param_part.append(param_str)
     # Output arg list as string according to sphinxcontrib-phpdomain format
-    if len(requiredParamPart) > 0:
-        if len(optionalParamPart) > 0:
+    if len(required_param_part) > 0:
+        if len(optional_param_part) > 0:
             # Both required and optional args
-            return "(" + ", ".join(requiredParamPart) + "[, " + ", ".join(optionalParamPart) + "])"
+            return "(" + ", ".join(required_param_part) + "[, " + ", ".join(optional_param_part) + "])"
         else:
             # Only required args
-            return "(" + ", ".join(requiredParamPart) + ")"
+            return "(" + ", ".join(required_param_part) + ")"
     else:
-        if len(optionalParamPart) > 0:
+        if len(optional_param_part) > 0:
             # Only optional args
-            return "([" + ", ".join(requiredParamPart) + "])"
+            return "([" + ", ".join(required_param_part) + "])"
         else:
             # Empty arg list!
             return "()"       
+
 
 def unencapsulate(typeStr):
     # TODO extract type w/o RST wrapping
@@ -272,29 +279,33 @@ def unencapsulate(typeStr):
         return (typeStr[8:])[:-1]
     return typeStr
 
-def allPrimitives():
+
+def all_primitives():
     # Scalar type keywords and things you find in documentation (eg. 'mixed')
     # http://php.net/manual/en/functions.arguments.php#functions.arguments.type-declaration
     return ["self", "bool", "callable", "iterable", "mixed", "int", "string", "array", "float", "double", "number"]
 
-def retInfo(dd):
+
+def ret_info(dd):
     ret = dd.find('*/simplesect')
     if ret == None:
         return None
     paras = ret.iter('para')
     desc = paras2rst(paras).strip()
-    descPart = (desc + " ").split(" ")
-    if descPart[0] in allPrimitives() or descPart[0][0:8] == ":class:`":
-
-        return {'returnType': unencapsulate(descPart[0]), 'returnDesc': " ".join(descPart[1:]).strip()}
+    desc_part = (desc + " ").split(" ")
+    if desc_part[0] in all_primitives() or desc_part[0][0:8] == ":class:`":
+        return {'returnType': unencapsulate(desc_part[0]), 'returnDesc': " ".join(desc_part[1:]).strip()}
     # No discernable return type
     return {'returnType': None, 'returnDesc': desc}
+
 
 def paras2rst(paras, prefix = ""):
     return "\n".join([prefix + para2rst(x) for x in paras])
 
+
 def xmldebug(inp):
     print(ET.tostring(inp, encoding='utf8', method='xml').decode())
+
 
 def para2rst(inp):
     ret = "" if inp.text == None else inp.text
@@ -311,28 +322,31 @@ def para2rst(inp):
         ret += txt + ("" if subtag.tail == None else subtag.tail)
     return ret
 
-def itsatype(inp, primitivesAsLiterals = False):
+
+def itsatype(inp, primitives_as_literals = False):
     if inp == None:
         return ""
     if inp == "":
         return ""
-    if inp in allPrimitives():
-        if primitivesAsLiterals:
+    if inp in all_primitives():
+        if primitives_as_literals:
           return "``" + inp + "``"
         else:
           return inp
     else:
         return ":class:`" + inp + "`"
 
-def compounddefByRefId(classRefId):
-    xmlFilename = inpDir + '/' + classRefId + '.xml'
-    cl = ET.parse(xmlFilename)
+
+def compounddef_by_ref_id(class_ref_id):
+    xml_filename = inpDir + '/' + class_ref_id + '.xml'
+    cl = ET.parse(xml_filename)
     return cl.getroot().find('compounddef')
 
-def renderClassByRefId(classRefId, name):
+
+def render_class_by_ref_id(class_ref_id, name):
     print("Processing class " + name)
-    print("  refid is " + classRefId)
-    compounddef = compounddefByRefId(classRefId)
+    print("  refid is " + class_ref_id)
+    compounddef = compounddef_by_ref_id(class_ref_id)
     prefix = rootNamespace + "::"
     parts = name[len(prefix):].split("::")
     shortname = "api/" + "/".join(parts).lower()
@@ -341,10 +355,11 @@ def renderClassByRefId(classRefId, name):
 
     print("  Class title will be '" + title + "'")
     print("  Class path will be  '" + outfile + "'")
-    classRst = classXmlToRst(compounddef, title)
+    class_rst = class_xml_to_rst(compounddef, title)
 
     with open(outfile, 'w') as classOut:
-      classOut.write(classRst)
+      classOut.write(class_rst)
+
 
 parser = argparse.ArgumentParser(description='Generate Sphinx-ready reStructuredText documentation or your PHP project, using Doxygen XML as an input.')
 parser.add_argument('--xml-dir', dest='xml_dir', default='xml')
@@ -357,4 +372,4 @@ outDir = args.out_dir
 rootNamespace = args.root_namespace
 
 tree = ET.parse(inpDir + '/index.xml')
-renderNamespaceByName(tree, rootNamespace);
+render_namespace_by_name(tree, rootNamespace)
