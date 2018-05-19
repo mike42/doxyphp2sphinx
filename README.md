@@ -21,7 +21,7 @@ we'll use that as an example:
 git clone https://github.com/mike42/gfx-php
 cd docs
 doxygen
-doxyphp2sphinx.py Mike42::GfxPhp
+python -m doxyphp2sphinx Mike42::GfxPhp
 make html
 ```
 
