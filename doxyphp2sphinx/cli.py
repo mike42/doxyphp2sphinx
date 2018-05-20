@@ -4,6 +4,7 @@ import argparse
 from .logger import FilteredLogger
 from .rstgenerator import RstGenerator
 
+
 class Cli:
     @staticmethod
     def run():
