@@ -99,7 +99,7 @@ class RstGenerator:
             # called on the class which defines them.
             return ret
         for base_class in compounddef.iter('basecompoundref'):
-            if not 'refid' in base_class:
+            if not 'refid' in base_class.attrib:
                 # Extends a class that is not documented here, eg. sub-class of RuntimeException
                 continue
             # Add inherited methods
@@ -125,7 +125,7 @@ class RstGenerator:
         extends = []
         implements = []
         for base_class in compounddef.iter('basecompoundref'):
-            if not 'refid' in base_class:
+            if not 'refid' in base_class.attrib:
                 # Base class not part of this project
                 continue
             baserefid = base_class.attrib['refid']
