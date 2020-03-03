@@ -99,6 +99,10 @@ class RstGenerator:
             # called on the class which defines them.
             return ret
         for base_class in compounddef.iter('basecompoundref'):
+            if not 'refid' in base_class.attrib:
+                # Extends a class that is not documented here, eg. sub-class of RuntimeException
+                continue
+            # Add inherited methods
             refid = base_class.attrib['refid']
             base_compound_def = self.compounddef_by_ref_id(refid)
             inherited = self.class_member_dict(base_compound_def, member_kind)
@@ -121,6 +125,9 @@ class RstGenerator:
         extends = []
         implements = []
         for base_class in compounddef.iter('basecompoundref'):
+            if not 'refid' in base_class.attrib:
+                # Base class not part of this project
+                continue
             baserefid = base_class.attrib['refid']
             base_compound_def = self.compounddef_by_ref_id(baserefid)
             if base_compound_def.attrib['kind'] == "class":
@@ -157,6 +164,18 @@ class RstGenerator:
         for method in methods:
             rst += self.method_xml_to_rst(method, 'method')
 
+        # Protected methods
+        methods = self.class_member_list(compounddef, 'protected-func')
+        self._logger.log("  methods:")
+        for method in methods:
+            rst += self.method_xml_to_rst(method, 'protectedmethod')
+
+        # Private methods
+        methods = self.class_member_list(compounddef, 'private-func')
+        self._logger.log("  methods:")
+        for method in methods:
+            rst += self.method_xml_to_rst(method, 'privatemethod')
+
         # Static methods
         methods = self.class_member_list(compounddef, 'public-static-func')
         self._logger.log("  static methods:")
@@ -175,8 +194,9 @@ class RstGenerator:
             # Use documented param list if present
             for arg in params.iter('parameteritem'):
                 argname = arg.find('parameternamelist')
-                argname_type = argname.find('parametertype').text
                 argname_name = argname.find('parametername').text
+                paramtype = argname.find('parametertype')
+                argname_type = paramtype.text if paramtype is not None else ''
                 argdesc = arg.find('parameterdescription')
                 argdesc_para = argdesc.iter('para')
                 doco = ("    :param " + argname_type).rstrip() + " " + argname_name + ":\n"
