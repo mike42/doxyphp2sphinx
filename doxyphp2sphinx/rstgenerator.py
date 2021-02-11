@@ -99,6 +99,8 @@ class RstGenerator:
             # called on the class which defines them.
             return ret
         for base_class in compounddef.iter('basecompoundref'):
+            if not 'refid' in base_class.attrib: 
+                continue
             refid = base_class.attrib['refid']
             base_compound_def = self.compounddef_by_ref_id(refid)
             inherited = self.class_member_dict(base_compound_def, member_kind)
@@ -121,7 +123,10 @@ class RstGenerator:
         extends = []
         implements = []
         for base_class in compounddef.iter('basecompoundref'):
-            baserefid = base_class.attrib['refid']
+            if 'refid' in base_class.attrib: 
+                baserefid = base_class.attrib['refid']
+            else:
+                continue
             base_compound_def = self.compounddef_by_ref_id(baserefid)
             if base_compound_def.attrib['kind'] == "class":
                 extends.append(base_compound_def)
@@ -155,17 +160,29 @@ class RstGenerator:
         methods = self.class_member_list(compounddef, 'public-func')
         self._logger.log("  methods:")
         for method in methods:
-            rst += self.method_xml_to_rst(method, 'method')
+            rst += self.method_xml_to_rst(method, 'method', 'public')
+
+        # Protected methods
+        methods = self.class_member_list(compounddef, 'protected-func')
+        self._logger.log("  protected methods:")
+        for method in methods:
+            rst += self.method_xml_to_rst(method, 'method', 'protected')
+
+        # Private methods
+        methods = self.class_member_list(compounddef, 'private-func')
+        self._logger.log("  private methods:")
+        for method in methods:
+            rst += self.method_xml_to_rst(method, 'method', 'private')
 
         # Static methods
         methods = self.class_member_list(compounddef, 'public-static-func')
         self._logger.log("  static methods:")
         for method in methods:
-            rst += self.method_xml_to_rst(method, 'staticmethod')
+            rst += self.method_xml_to_rst(method, 'staticmethod', 'static')
 
         return rst
 
-    def method_xml_to_rst(self, member, method_type):
+    def method_xml_to_rst(self, member, method_type, access_type=''):
         rst = ""
         documented_params = {}
         dd = member.find('detaileddescription')
@@ -175,8 +192,18 @@ class RstGenerator:
             # Use documented param list if present
             for arg in params.iter('parameteritem'):
                 argname = arg.find('parameternamelist')
-                argname_type = argname.find('parametertype').text
-                argname_name = argname.find('parametername').text
+                if argname.find('parametertype'):
+                    argname_type = argname.find('parametertype').text
+                else:
+                    argname_type = ""
+                if argname.find('parametername'):
+                    argname_name = argname.find('parametername').text
+                else:
+                    argname_name = ""
+                if not argname_name:
+                    argname_name = ""
+                if not argname_type:
+                    argname_type = ""
                 argdesc = arg.find('parameterdescription')
                 argdesc_para = argdesc.iter('para')
                 doco = ("    :param " + argname_type).rstrip() + " " + argname_name + ":\n"
@@ -188,7 +215,9 @@ class RstGenerator:
 
         if return_info != None and return_info['returnType'] != None:
             args_string += " -> " + return_info['returnType']
-        rst += "  .. php:" + method_type + ":: " + method_name + " " + args_string + "\n\n"
+        if access_type != '':
+            access_type = access_type + ' '
+        rst += "  .. php:" + method_type + ":: " + access_type + method_name + " " + args_string + "\n\n"
         # Member description
         m_detailed_description_text = self.paras2rst(dd).strip()
         if m_detailed_description_text != "":
